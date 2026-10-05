@@ -17,7 +17,7 @@ if vehicle_type == 'Multicopter':
             'plant/multicopter',
             'ins/cf_ins',
             'fms/mc_fms',
-            'control/adrc_controller',
+            'control/mc_controller',
         ]
 elif vehicle_type == 'Fixwing':
     if sim_mode == 'HIL':
