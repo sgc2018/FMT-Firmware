@@ -57,11 +57,57 @@ static void __handle_device_msg(rt_device_t dev, void* msg)
     }
 }
 
+/* A mirror device sends and receives the same mavlink data as the device of the
+ * channel, so the channel can be used from several devices at the same time. */
+static fmt_err_t mavproxy_parse_mirror_device(const toml_table_t* curtab, uint8_t chan)
+{
+    fmt_err_t err;
+    char* name;
+    char* type;
+
+    if (toml_string_in(curtab, "name", &name) != 0) {
+        TOML_DBG_E("fail to parse name value\n");
+        return FMT_ERROR;
+    }
+
+    if (toml_string_in(curtab, "type", &type) != 0) {
+        TOML_DBG_E("fail to parse type value\n");
+        rt_free(name);
+        return FMT_ERROR;
+    }
+
+    err = mavproxy_dev_add_mirror(chan, name);
+    if (err == FMT_EOK && MATCH(type, "serial")) {
+        rt_device_t dev = rt_device_find(name);
+        struct serial_configure pconfig = ((serial_dev_t)dev)->config;
+        int64_t ival;
+
+        pconfig.baud_rate = MAVPROXY_SERIAL_BAUDRATE;
+        if (toml_int_in(curtab, "baudrate", &ival) == 0) {
+            pconfig.baud_rate = (uint32_t)ival;
+        }
+
+        if (rt_device_control(dev, RT_DEVICE_CTRL_CONFIG, &pconfig) != RT_EOK) {
+            err = FMT_ERROR;
+        }
+    }
+
+    if (err != FMT_EOK) {
+        TOML_DBG_E("fail to add mirror device %s for chan:%d\n", name, chan);
+    }
+
+    rt_free(name);
+    rt_free(type);
+
+    return err;
+}
+
 static fmt_err_t mavproxy_parse_device(const toml_table_t* curtab)
 {
     fmt_err_t err = FMT_EOK;
     uint8_t chan;
     uint8_t idx;
+    int bval;
 
     /* get channel */
     int64_t ival;
@@ -71,6 +117,11 @@ static fmt_err_t mavproxy_parse_device(const toml_table_t* curtab)
         if (chan >= MAXPROXY_MAX_CHAN) {
             TOML_DBG_E("invalid channel:%d\n", chan);
             return FMT_EINVAL;
+        }
+
+        if (toml_bool_in(curtab, "mirror", &bval) == 0 && bval) {
+            /* mirror device is not in the device list, since the channel never switch to it */
+            return mavproxy_parse_mirror_device(curtab, chan);
         }
 
         if (DEVICE_NUM(chan) >= MAVPROXY_MAX_DEVICE_NUM) {
@@ -111,7 +162,6 @@ static fmt_err_t mavproxy_parse_device(const toml_table_t* curtab)
                 err = FMT_ENOMEM;
             }
         } else if (DEVICE_TYPE_IS(chan, idx, usb)) {
-            int bval;
             if (toml_bool_in(curtab, "auto-switch", &bval) == 0) {
                 if (bval) {
                     /* if auto-switch is true, register devmq to monitor device status */

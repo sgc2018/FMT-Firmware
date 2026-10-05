@@ -20,6 +20,11 @@
 
 struct mavdev {
     rt_device_t dev;
+    /* mirror devices, which send and receive the same data as dev */
+    rt_device_t mirror_dev[MAVPROXY_MAX_MIRROR_NUM];
+    /* true if data can be sent to the mirror device */
+    volatile bool mirror_online[MAVPROXY_MAX_MIRROR_NUM];
+    uint8_t mirror_num;
     rt_err_t (*tx_done)(rt_device_t dev, void* buffer);
     rt_err_t (*rx_ind)(rt_device_t dev, rt_size_t size);
     fmt_err_t (*mav_rx_ind)(uint32_t size);
@@ -35,7 +40,17 @@ static rt_err_t mavdev_tx_done(rt_device_t dev, void* buffer)
 static rt_err_t mavdev_rx_ind(rt_device_t dev, rt_size_t size)
 {
     for (uint8_t chan = 0; chan < MAXPROXY_MAX_CHAN; chan++) {
-        if (dev == mavdev_list[chan].dev) {
+        bool match = (dev == mavdev_list[chan].dev);
+
+        for (uint8_t idx = 0; idx < mavdev_list[chan].mirror_num; idx++) {
+            if (dev == mavdev_list[chan].mirror_dev[idx]) {
+                /* data received, so there is someone on the other side */
+                mavdev_list[chan].mirror_online[idx] = true;
+                match = true;
+            }
+        }
+
+        if (match) {
             /* find device channel */
             if (mavdev_list[chan].mav_rx_ind) {
                 mavdev_list[chan].mav_rx_ind(size);
@@ -46,6 +61,24 @@ static rt_err_t mavdev_rx_ind(rt_device_t dev, rt_size_t size)
     return RT_EOK;
 }
 
+static rt_err_t mavdev_open(rt_device_t dev)
+{
+    rt_uint16_t flag = RT_DEVICE_OFLAG_RDWR;
+
+    /* if device support DMA, then use it */
+    if (dev->flag & RT_DEVICE_FLAG_DMA_RX) {
+        flag |= RT_DEVICE_FLAG_DMA_RX;
+    } else {
+        flag |= RT_DEVICE_FLAG_INT_RX;
+    }
+
+    if (dev->flag & RT_DEVICE_FLAG_DMA_TX) {
+        flag |= RT_DEVICE_FLAG_DMA_TX;
+    }
+
+    return rt_device_open(dev, flag);
+}
+
 rt_size_t mavproxy_dev_write(uint8_t chan, const void* buffer, uint32_t len, int32_t timeout)
 {
     if (mavdev_list[chan].dev == NULL) {
@@ -53,7 +86,23 @@ rt_size_t mavproxy_dev_write(uint8_t chan, const void* buffer, uint32_t len, int
         return 0;
     }
 
-    return rt_device_write(mavdev_list[chan].dev, timeout, buffer, len);
+    rt_size_t size = rt_device_write(mavdev_list[chan].dev, timeout, buffer, len);
+
+    for (uint8_t idx = 0; idx < mavdev_list[chan].mirror_num; idx++) {
+        rt_device_t mirror_dev = mavdev_list[chan].mirror_dev[idx];
+
+        if (!mavdev_list[chan].mirror_online[idx]) {
+            continue;
+        }
+
+        if (rt_device_write(mirror_dev, timeout, buffer, len) != len && mirror_dev->type == RT_Device_Class_USBDevice) {
+            /* usb is disconnected or the host doesn't read data. stop sending until we
+               receive data from it again, otherwise each write blocks until timeout */
+            mavdev_list[chan].mirror_online[idx] = false;
+        }
+    }
+
+    return size;
 }
 
 rt_size_t mavproxy_dev_read(uint8_t chan, void* buffer, uint32_t len, int32_t timeout)
@@ -84,20 +133,7 @@ fmt_err_t mavproxy_dev_set_device(uint8_t chan, const char* dev_name)
     }
 
     if (new_dev != mavdev_list[chan].dev) {
-        rt_uint16_t flag = RT_DEVICE_OFLAG_RDWR;
-
-        /* if device support DMA, then use it */
-        if (new_dev->flag & RT_DEVICE_FLAG_DMA_RX) {
-            flag |= RT_DEVICE_FLAG_DMA_RX;
-        } else {
-            flag |= RT_DEVICE_FLAG_INT_RX;
-        }
-
-        if (new_dev->flag & RT_DEVICE_FLAG_DMA_TX) {
-            flag |= RT_DEVICE_FLAG_DMA_TX;
-        }
-
-        rt_err_t err = rt_device_open(new_dev, flag);
+        rt_err_t err = mavdev_open(new_dev);
         if (err != RT_EOK) {
             return FMT_ERROR;
         }
@@ -114,6 +150,65 @@ fmt_err_t mavproxy_dev_set_device(uint8_t chan, const char* dev_name)
 rt_device_t mavproxy_dev_get_device(uint8_t chan)
 {
     return mavdev_list[chan].dev;
+}
+
+/**
+ * @brief  Add a mirror device to a mavlink channel. The data sent via the channel
+ *         is sent to the mirror device as well, and the data received from the
+ *         mirror device is handled as data of the channel.
+ *
+ * @param  chan: mavlink channel
+ * @param  dev_name: mirror device name
+ *
+ * @return FMT Errors
+ */
+fmt_err_t mavproxy_dev_add_mirror(uint8_t chan, const char* dev_name)
+{
+    rt_device_t new_dev;
+    uint8_t idx;
+
+    if (chan >= MAXPROXY_MAX_CHAN) {
+        return FMT_EINVAL;
+    }
+
+    idx = mavdev_list[chan].mirror_num;
+    if (idx >= MAVPROXY_MAX_MIRROR_NUM) {
+        return FMT_EFULL;
+    }
+
+    new_dev = rt_device_find(dev_name);
+    if (new_dev == RT_NULL) {
+        return FMT_EEMPTY;
+    }
+
+    if (mavdev_open(new_dev) != RT_EOK) {
+        return FMT_ERROR;
+    }
+
+    /* set callback functions */
+    rt_device_set_tx_complete(new_dev, mavdev_list[chan].tx_done);
+    rt_device_set_rx_indicate(new_dev, mavdev_list[chan].rx_ind);
+
+    mavdev_list[chan].mirror_dev[idx] = new_dev;
+    /* a write to usb blocks if the host doesn't read, so wait until we receive data from it */
+    mavdev_list[chan].mirror_online[idx] = (new_dev->type != RT_Device_Class_USBDevice);
+    mavdev_list[chan].mirror_num = idx + 1;
+
+    return FMT_EOK;
+}
+
+uint8_t mavproxy_dev_get_mirror_num(uint8_t chan)
+{
+    return mavdev_list[chan].mirror_num;
+}
+
+rt_size_t mavproxy_dev_read_mirror(uint8_t chan, uint8_t idx, void* buffer, uint32_t len, int32_t timeout)
+{
+    if (idx >= mavdev_list[chan].mirror_num) {
+        return 0;
+    }
+
+    return rt_device_read(mavdev_list[chan].mirror_dev[idx], timeout, buffer, len);
 }
 
 /**
@@ -137,9 +232,9 @@ uint32_t mavproxy_dev_get_bw(uint8_t chan)
         serial = (struct serial_device*)dev;
         bw = serial->config.baud_rate / (8 + 2); // convert bits to bytes minus overhead
     } else if (dev->type == RT_Device_Class_USBDevice) {
-        bw = 2 * 1024 * 1024;                    // The USB Full Speed (FS) transmission rate is conservatively estimated at 2 Mbps.
+        bw = 2 * 1024 * 1024; // The USB Full Speed (FS) transmission rate is conservatively estimated at 2 Mbps.
     } else if (dev->type == RT_Device_Class_NetIf) {
-        bw = 80 * 1024 * 1024;                   // The ETH speed is estimated at 80 Mbps.
+        bw = 80 * 1024 * 1024; // The ETH speed is estimated at 80 Mbps.
     } else {
         console_printf("mavproxy unknown device type %d\n", dev->type);
         bw = 0;

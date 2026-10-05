@@ -27,6 +27,9 @@ struct mavlink_msg_handler_func {
 };
 
 static char thread_mavlink_rx_stack[6144];
+/* each mirror device has its own parser, since its data stream is independent */
+static mavlink_message_t mirror_rx_msg[MAXPROXY_MAX_CHAN][MAVPROXY_MAX_MIRROR_NUM];
+static mavlink_status_t mirror_rx_status[MAXPROXY_MAX_CHAN][MAVPROXY_MAX_MIRROR_NUM];
 static struct rt_thread thread_mavlink_rx_handle;
 static struct rt_event mav_rx_event;
 
@@ -62,6 +65,8 @@ static void mavproxy_rx_entry(void* param)
 {
     mavlink_message_t msg[MAXPROXY_MAX_CHAN];
     mavlink_status_t mav_status[MAXPROXY_MAX_CHAN];
+    mavlink_message_t mirror_msg;
+    mavlink_status_t mirror_status;
     mavlink_system_t mavlink_system;
     char byte;
     rt_uint32_t recv_set = 0;
@@ -81,6 +86,15 @@ static void mavproxy_rx_entry(void* param)
                         /* decode mavlink package */
                         if (mavlink_parse_char(0, byte, &msg[chan], &mav_status[chan]) == 1) {
                             handle_mavlink_msg(chan, &msg[chan], mavlink_system);
+                        }
+                    }
+
+                    for (uint8_t idx = 0; idx < mavproxy_dev_get_mirror_num(chan); idx++) {
+                        while (mavproxy_dev_read_mirror(chan, idx, &byte, 1, RT_WAITING_NO)) {
+                            /* decode mavlink package */
+                            if (mavlink_frame_char_buffer(&mirror_rx_msg[chan][idx], &mirror_rx_status[chan][idx], byte, &mirror_msg, &mirror_status) == MAVLINK_FRAMING_OK) {
+                                handle_mavlink_msg(chan, &mirror_msg, mavlink_system);
+                            }
                         }
                     }
                 }
