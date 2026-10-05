@@ -1,4 +1,6 @@
 # FMT System Configuration File
+# Pixhawk 6C quadcopter: 4 ESCs on FMU PWM OUT 1-4, SBUS receiver on RC IN,
+# MAVLink UDP gateway on TELEM1, GNSS module on GPS1, debug console on TELEM3.
 
 # The target should match with BSP's target name
 target = "Pixhawk 6C"
@@ -7,7 +9,13 @@ target = "Pixhawk 6C"
 [console]
     [[console.devices]]
     type = "serial"
-    name = "serial0"
+    name = "serial0"            # DEBUG port
+    baudrate = 57600
+    auto-switch = true
+
+    [[console.devices]]
+    type = "serial"
+    name = "serial6"            # TELEM3
     baudrate = 57600
     auto-switch = true
 
@@ -21,26 +29,14 @@ target = "Pixhawk 6C"
     [[mavproxy.devices]]
     chan = 0
     type = "serial"
-    name = "serial1"
-    baudrate = 57600
+    name = "serial1"            # TELEM1 -> MAVLink UDP gateway
+    baudrate = 57600            # must match the gateway's serial baudrate
 
     [[mavproxy.devices]]
     chan = 0
     type = "usb"
     name = "usbd0"
-    auto-switch = true
-
-    [[mavproxy.devices]]
-    chan = 1
-    type = "serial"
-    name = "serial4"
-    baudrate = 115200
-
-    [[mavproxy.devices]]
-    chan = 2
-    type = "serial"
-    name = "serial6"
-    baudrate = 115200
+    auto-switch = true          # channel 0 moves to USB while USB is connected
 
 # Pilot CMD Configuration
 [pilot-cmd]
@@ -80,25 +76,20 @@ target = "Pixhawk 6C"
 [actuator]
     [[actuator.devices]]
     protocol = "pwm"
-    name = "aux_out"
-    freq = 400                   # pwm frequency in Hz
-
-    [[actuator.devices]]
-    protocol = "pwm"
-    name = "main_out"
-    freq = 50                  # pwm frequency in Hz
+    name = "aux_out"            # FMU PWM OUT
+    freq = 400                  # pwm frequency in Hz
 
     [[actuator.mappings]]
     from = "control_out"
     to = "aux_out"
-    chan-map = [[1,2,3,4,5,6,7,8],[1,2,3,4,5,6,7,8]]
+    chan-map = [[1,2,3,4],[1,2,3,4]]
 
 # GNSS Configuration
 [gnss]
     [[gnss.devices]]
     id = 0
-    protocol = "ublox"  # ublox or nmea
+    protocol = "ublox"          # ublox or nmea
     type = "serial"
-    name = "serial2"
+    name = "serial2"            # GPS1
     auto-config = true
-    baudrate = 0        # 0 means auto detect baudrate
+    baudrate = 38400            # NEO-M8N on this vehicle runs at 38400 (0 = auto detect)
