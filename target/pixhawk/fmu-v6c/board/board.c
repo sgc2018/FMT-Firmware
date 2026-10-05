@@ -203,6 +203,17 @@ static void CPU_Config(void)
         NVIC->ICPR[i] = 0xFFFFFFFF;
     }
 
+    /* Peripherals used by the bootloader are left configured as well (e.g.
+       UART7 stays enabled with RXNE interrupt on, and floods the system with
+       interrupts if a byte is received before the port is opened). Reset
+       APB1/APB2 peripherals, so drivers start from the default state. */
+    __HAL_RCC_APB1L_FORCE_RESET();
+    __HAL_RCC_APB1L_RELEASE_RESET();
+    __HAL_RCC_APB1H_FORCE_RESET();
+    __HAL_RCC_APB1H_RELEASE_RESET();
+    __HAL_RCC_APB2_FORCE_RESET();
+    __HAL_RCC_APB2_RELEASE_RESET();
+
     MPU_Config();
 
     /* Enable I-Cache */
