@@ -36,7 +36,7 @@ target = "Pixhawk 6C"
     chan = 0
     type = "usb"
     name = "usbd0"
-    auto-switch = true          # channel 0 moves to USB while USB is connected
+    mirror = true               # use USB in parallel with TELEM1 instead of switching to it
 
 # Pilot CMD Configuration
 [pilot-cmd]
