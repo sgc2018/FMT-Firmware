@@ -27,6 +27,11 @@ target = "Pixhawk 6C"\n
 	baudrate = 57600\n
 	auto-switch = true\n
 	[[console.devices]]\n
+	type = "serial"\n
+	name = "serial6"\n
+	baudrate = 57600\n
+	auto-switch = true\n
+	[[console.devices]]\n
 	type = "mavlink"\n
 	name = "mav_console"\n
 	auto-switch = true\n

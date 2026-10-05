@@ -104,6 +104,8 @@ Rebooting. Elapsed Time 18.874
 
 When system is up and running, the system banner is output via serial0 or you can view it by entering `boot_log` in QGC Mavlink Console.
 
+The console is also available on serial6 (TELEM3, 57600 baud). It switches to TELEM3 automatically once any data is received from that port, e.g. by pressing Enter in the terminal.
+
 ```
    _____                               __ 
   / __(_)_____ _  ___ ___ _  ___ ___  / /_
