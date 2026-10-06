@@ -32,3 +32,8 @@ cconfig.h
 src/lib/dronecan/dsdlc_generated/*
 **/cubemx/**
 !*.ioc
+
+# Local notes copied from the Claude memory directory (not part of the firmware)
+/MEMORY.md
+/wisdomfarmer-quad-state.md
+/pixhawk-6c-bench-access.md
