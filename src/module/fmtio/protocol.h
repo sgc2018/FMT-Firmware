@@ -23,10 +23,10 @@
 extern "C" {
 #endif
 
-#define IO_BUFFER_SIZE 256
+#define IO_BUFFER_SIZE          256
 
-#define IO_PKT_HEAD     0xFA5C
-#define IO_REBOOT_MAGIC 0x315C
+#define IO_PKT_HEAD             0xFA5C
+#define IO_REBOOT_MAGIC         0x315C
 
 #define IO_CODE_SYNC            0x00
 #define IO_CODE_REBOOT          0x01
@@ -36,8 +36,9 @@ extern "C" {
 #define IO_CODE_CONFIG_RC       0x06
 #define IO_CODE_RC_DATA         0x07
 #define IO_CODE_DBG_TEXT        0x08
+#define IO_CODE_RC_STATUS       0x09
 
-#define PKT_SIZE(_pkt) (sizeof(struct IOPacket) - IO_BUFFER_SIZE + (_pkt)->len)
+#define PKT_SIZE(_pkt)          (sizeof(struct IOPacket) - IO_BUFFER_SIZE + (_pkt)->len)
 
 #pragma pack(push, 1)
 struct IOPacket {
@@ -67,6 +68,23 @@ typedef struct {
     uint16_t protocol; // 1:sbus 2:ppm
     float sample_time; // rc sample time in seconds (-1 for inherits)
 } IO_RCConfig;
+
+/* fmtio rc status flags */
+#define IO_RC_FLAG_FRAME_LOST (1 << 0) // receiver reported a skipped frame
+#define IO_RC_FLAG_FAILSAFE   (1 << 1) // receiver is in failsafe (link lost)
+
+/* fmtio rc link status, sent periodically by the IO */
+#pragma pack(push, 1)
+typedef struct {
+    uint16_t flags;             // flags of the last decoded frame
+    uint32_t frame_count;       // frames decoded successfully
+    uint32_t frame_lost_count;  // frames flagged frame-lost (values still forwarded)
+    uint32_t failsafe_count;    // frames flagged failsafe (not forwarded)
+    uint32_t decode_drop_count; // frames the decoder could not parse
+    uint32_t ms_since_rx;       // time since the last byte from the receiver
+    uint32_t ms_since_frame;    // time since the last decoded frame
+} IO_RCStatus;
+#pragma pack(pop)
 
 void init_io_pkt(struct IOPacket* pkt);
 struct IOPacket* create_io_pkt(void);

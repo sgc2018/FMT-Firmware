@@ -16,11 +16,11 @@
 
 #ifndef __SBUS_H__
 #define __SBUS_H__
-#include <stdio.h>
-#include <stdbool.h>
-#include "time.h"
 #include "protocol.h"
+#include "time.h"
 #include "usart.h"
+#include <stdbool.h>
+#include <stdio.h>
 
 unsigned sbus_dropped_frames(void);
 
@@ -29,6 +29,7 @@ void sbus2_output(uint16_t* values, uint16_t num_values);
 bool sbus_input(uint16_t* values, uint16_t* num_values, bool* sbus_failsafe,
                 bool* sbus_frame_drop, uint16_t max_channels);
 uint8_t send_sbus_value(void);
+void send_sbus_status(void);
 
 uint8_t sbus_init(void);
 void sbus_deinit(void);

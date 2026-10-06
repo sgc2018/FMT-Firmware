@@ -26,17 +26,17 @@
 
 static RING_BUFFER_Def sbus_rb;
 
-#define RC_INPUT_CHANNELS 16
+#define RC_INPUT_CHANNELS          16
 
-#define SBUS_START_SYMBOL 0x0f
+#define SBUS_START_SYMBOL          0x0f
 
-#define SBUS_INPUT_CHANNELS 16
-#define SBUS_FLAGS_BYTE     23
-#define SBUS_FAILSAFE_BIT   3
-#define SBUS_FRAMELOST_BIT  2
+#define SBUS_INPUT_CHANNELS        16
+#define SBUS_FLAGS_BYTE            23
+#define SBUS_FAILSAFE_BIT          3
+#define SBUS_FRAMELOST_BIT         2
 
 // this is the rate of the old code
-#define SBUS_DEFAULT_RATE_HZ 72
+#define SBUS_DEFAULT_RATE_HZ       72
 
 /*
   Measured values with Futaba FX-30/R6108SB:
@@ -46,15 +46,15 @@ static RING_BUFFER_Def sbus_rb;
 */
 
 /* define range mapping here, -+100% -> 1000..2000 */
-#define SBUS_RANGE_MIN 200.0f
-#define SBUS_RANGE_MAX 1800.0f
+#define SBUS_RANGE_MIN             200.0f
+#define SBUS_RANGE_MAX             1800.0f
 
-#define SBUS_TARGET_MIN 1000.0f
-#define SBUS_TARGET_MAX 2000.0f
+#define SBUS_TARGET_MIN            1000.0f
+#define SBUS_TARGET_MAX            2000.0f
 
 /* pre-calculate the floating point stuff as far as possible at compile time */
-#define SBUS_SCALE_FACTOR ((SBUS_TARGET_MAX - SBUS_TARGET_MIN) / (SBUS_RANGE_MAX - SBUS_RANGE_MIN))
-#define SBUS_SCALE_OFFSET (int)(SBUS_TARGET_MIN - (SBUS_SCALE_FACTOR * SBUS_RANGE_MIN + 0.5f))
+#define SBUS_SCALE_FACTOR          ((SBUS_TARGET_MAX - SBUS_TARGET_MIN) / (SBUS_RANGE_MAX - SBUS_RANGE_MIN))
+#define SBUS_SCALE_OFFSET          (int)(SBUS_TARGET_MIN - (SBUS_SCALE_FACTOR * SBUS_RANGE_MIN + 0.5f))
 
 #define SBUS_FRAME_SIZE_RX_VOLTAGE 3
 #define SBUS_FRAME_SIZE_GPS_DIGIT  3
@@ -87,6 +87,8 @@ static unsigned sbus_frame_drops;
 
 static uint16_t _rc_values[RC_INPUT_CHANNELS];
 
+static IO_RCStatus sbus_status;
+
 uint16_t sbus_send(uint8_t* data, uint16_t len);
 uint16_t sbus_read(uint8_t* buf, uint16_t size);
 
@@ -109,7 +111,7 @@ void sbus1_output(uint16_t* values, uint16_t num_values)
         uint8_t oframe[SBUS_FRAME_SIZE] = { 0x0f };
 
         /* 16 is sbus number of servos/channels minus 2 single bit channels.
-		* currently ignoring single bit channels.  */
+         * currently ignoring single bit channels.  */
 
         for (unsigned i = 0; (i < num_values) && (i < 16); ++i) {
             value = (uint16_t)(((values[i] - SBUS_SCALE_OFFSET) / SBUS_SCALE_FACTOR) + .5f);
@@ -175,9 +177,9 @@ static const struct sbus_bit_pick sbus_decoder[SBUS_INPUT_CHANNELS][3] = {
 };
 
 bool sbus_decode(uint64_t frame_time, uint8_t* frame, uint16_t* values, uint16_t* num_values,
-    bool* sbus_failsafe, bool* sbus_frame_drop, uint16_t max_values)
+                 bool* sbus_failsafe, bool* sbus_frame_drop, uint16_t max_values)
 {
-    //unsigned i;
+    // unsigned i;
     /* check frame boundary markers to avoid out-of-sync cases */
     if ((frame[0] != SBUS_START_SYMBOL)) {
         sbus_frame_drops++;
@@ -275,10 +277,10 @@ bool sbus_decode(uint64_t frame_time, uint8_t* frame, uint16_t* values, uint16_t
 
     } else if (frame[SBUS_FLAGS_BYTE] & (1 << SBUS_FRAMELOST_BIT)) { /* a frame was lost */
         /* set a special warning flag
-		 *
-		 * Attention! This flag indicates a skipped frame only, not a total link loss! Handling this
-		 * condition as fail-safe greatly reduces the reliability and range of the radio link,
-		 * e.g. by prematurely issuing return-to-launch!!! */
+         *
+         * Attention! This flag indicates a skipped frame only, not a total link loss! Handling this
+         * condition as fail-safe greatly reduces the reliability and range of the radio link,
+         * e.g. by prematurely issuing return-to-launch!!! */
 
         *sbus_failsafe = false;
         *sbus_frame_drop = true;
@@ -292,14 +294,14 @@ bool sbus_decode(uint64_t frame_time, uint8_t* frame, uint16_t* values, uint16_t
 }
 
 bool sbus_parse(uint64_t now, uint8_t* frame, unsigned len, uint16_t* values,
-    uint16_t* num_values, bool* sbus_failsafe, bool* sbus_frame_drop, unsigned* frame_drops, uint16_t max_channels)
+                uint16_t* num_values, bool* sbus_failsafe, bool* sbus_frame_drop, unsigned* frame_drops, uint16_t max_channels)
 {
     unsigned i;
     last_rx_time = now;
 
     /* this is set by the decoding state machine and will default to false
-	 * once everything that was decodable has been decoded.
-	 */
+     * once everything that was decodable has been decoded.
+     */
     bool decode_ret = false;
 
     /* keep decoding until we have consumed the buffer */
@@ -345,15 +347,15 @@ bool sbus_parse(uint64_t now, uint8_t* frame, unsigned len, uint16_t* values,
             }
 
             /*
-				 * Great, it looks like we might have a frame.  Go ahead and
-				 * decode it.
-				 */
+             * Great, it looks like we might have a frame.  Go ahead and
+             * decode it.
+             */
             decode_ret = sbus_decode(now, sbus_frame, values, num_values, sbus_failsafe, sbus_frame_drop, max_channels);
 
             /*
-				 * Offset recovery: If decoding failed, check if there is a second
-				 * start marker in the packet.
-				 */
+             * Offset recovery: If decoding failed, check if there is a second
+             * start marker in the packet.
+             */
             unsigned start_index = 0;
 
             if (!decode_ret && sbus_decode_state == SBUS_DECODE_STATE_DESYNC) {
@@ -382,9 +384,9 @@ bool sbus_parse(uint64_t now, uint8_t* frame, unsigned len, uint16_t* values,
             }
 
             /* if there has been no successful attempt at saving a failed
-				 * decoding run, reset the frame count for successful and
-				 * unsuccessful decode runs.
-				 */
+             * decoding run, reset the frame count for successful and
+             * unsuccessful decode runs.
+             */
             if (start_index == 0) {
                 partial_frame_count = 0;
             }
@@ -412,8 +414,8 @@ bool sbus_parse(uint64_t now, uint8_t* frame, unsigned len, uint16_t* values,
                 // (frame[0] == 0x3 && frame[1] == 0x80 && frame[2] == 0x2f)
                 // (frame[0] == 0x3 && frame[1] == 0xc0 && frame[2] == 0x2f)
 #ifdef SBUS_DEBUG
-                //uint16_t rx_voltage = (sbus_frame[1] << 8) | sbus_frame[2];
-                //printf("rx_voltage %d\n", (int)rx_voltage);
+                // uint16_t rx_voltage = (sbus_frame[1] << 8) | sbus_frame[2];
+                // printf("rx_voltage %d\n", (int)rx_voltage);
 #endif
             }
 
@@ -478,32 +480,32 @@ bool sbus_parse(uint64_t now, uint8_t* frame, unsigned len, uint16_t* values,
 }
 
 bool sbus_input(uint16_t* values, uint16_t* num_values, bool* sbus_failsafe,
-    bool* sbus_frame_drop, uint16_t max_channels)
+                bool* sbus_frame_drop, uint16_t max_channels)
 {
     int ret = 1;
     uint64_t now;
 
     /*
-	 * The S.BUS protocol doesn't provide reliable framing,
-	 * so we detect frame boundaries by the inter-frame delay.
-	 *
-	 * The minimum frame spacing is 7ms; with 25 bytes at 100000bps
-	 * frame transmission time is ~2ms.
-	 *
-	 * We expect to only be called when bytes arrive for processing,
-	 * and if an interval of more than 3ms passes between calls,
-	 * the first byte we read will be the first byte of a frame.
-	 *
-	 * In the case where byte(s) are dropped from a frame, this also
-	 * provides a degree of protection. Of course, it would be better
-	 * if we didn't drop bytes...
-	 */
+     * The S.BUS protocol doesn't provide reliable framing,
+     * so we detect frame boundaries by the inter-frame delay.
+     *
+     * The minimum frame spacing is 7ms; with 25 bytes at 100000bps
+     * frame transmission time is ~2ms.
+     *
+     * We expect to only be called when bytes arrive for processing,
+     * and if an interval of more than 3ms passes between calls,
+     * the first byte we read will be the first byte of a frame.
+     *
+     * In the case where byte(s) are dropped from a frame, this also
+     * provides a degree of protection. Of course, it would be better
+     * if we didn't drop bytes...
+     */
     now = time_nowUs();
 
     /*
-	 * Fetch bytes, but no more than we would need to complete
-	 * a complete frame.
-	 */
+     * Fetch bytes, but no more than we would need to complete
+     * a complete frame.
+     */
     uint8_t buf[SBUS_FRAME_SIZE * 2];
     bool sbus_decoded = false;
 
@@ -515,10 +517,9 @@ bool sbus_input(uint16_t* values, uint16_t* num_values, bool* sbus_failsafe,
     }
 
     /*
-	 * Try to decode something with what we got
-	 */
-    if (sbus_parse(now, &buf[0], ret, values, num_values, sbus_failsafe,
-            sbus_frame_drop, &sbus_frame_drops, max_channels)) {
+     * Try to decode something with what we got
+     */
+    if (sbus_parse(now, &buf[0], ret, values, num_values, sbus_failsafe, sbus_frame_drop, &sbus_frame_drops, max_channels)) {
 
         sbus_decoded = true;
     }
@@ -529,14 +530,28 @@ bool sbus_input(uint16_t* values, uint16_t* num_values, bool* sbus_failsafe,
 uint8_t send_sbus_value(void)
 {
     int ret = 0;
-    int i = 0;
     uint16_t rc_count = 0;
     bool sbus_failsafe, sbus_frame_drop;
 
-    bool sbus_updated = sbus_input(_rc_values, &rc_count, &sbus_failsafe, &sbus_frame_drop,
-        RC_INPUT_CHANNELS);
+    bool sbus_updated = sbus_input(_rc_values, &rc_count, &sbus_failsafe, &sbus_frame_drop, RC_INPUT_CHANNELS);
 
-    if (sbus_updated && !sbus_failsafe && !sbus_frame_drop) {
+    if (sbus_updated) {
+        sbus_status.frame_count++;
+        sbus_status.flags = 0;
+        if (sbus_failsafe) {
+            sbus_status.failsafe_count++;
+            sbus_status.flags |= IO_RC_FLAG_FAILSAFE;
+        } else if (sbus_frame_drop) {
+            sbus_status.frame_lost_count++;
+            sbus_status.flags |= IO_RC_FLAG_FRAME_LOST;
+        }
+    }
+
+    /* The frame-lost flag only tells that the receiver skipped a frame, the
+       channel values of this frame are still valid, so keep forwarding them
+       (PX4 handles it the same way). Only failsafe frames are dropped, so the
+       FMU sees the rc timeout when the link is really lost. */
+    if (sbus_updated && !sbus_failsafe) {
         if (rc_signal_ready()) {
             send_io_cmd(IO_CODE_RC_DATA, _rc_values, 32);
             ret = 0;
@@ -546,6 +561,17 @@ uint8_t send_sbus_value(void)
     }
 
     return ret;
+}
+
+void send_sbus_status(void)
+{
+    uint64_t now = time_nowUs();
+
+    sbus_status.decode_drop_count = sbus_frame_drops;
+    sbus_status.ms_since_rx = (uint32_t)((now - last_rx_time) / 1000);
+    sbus_status.ms_since_frame = (uint32_t)((now - last_frame_time) / 1000);
+
+    send_io_cmd(IO_CODE_RC_STATUS, &sbus_status, sizeof(sbus_status));
 }
 
 uint8_t sbus_send_ch(uint8_t ch)

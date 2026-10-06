@@ -77,6 +77,8 @@ int main(void)
 
             if (rc_config.protocol == 1) {
                 send_sbus_value();
+                /* report sbus link status to fmu */
+                PERIOD_EXECUTE(rc_status, 500, send_sbus_status();)
             } else if (rc_config.protocol == 2) {
                 send_ppm_value();
             }

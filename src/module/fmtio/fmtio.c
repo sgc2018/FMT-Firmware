@@ -19,7 +19,7 @@
 #include "hal/rc/rc.h"
 #include "hal/serial/serial.h"
 
-#define EVENT_FMTIO_RX (1) // 1 << 0
+#define EVENT_FMTIO_RX          (1) // 1 << 0
 
 #define FMTIO_MOTOR_CHANNEL_NUM 8
 #define FMTIO_RC_CHANNEL_NUM    16
@@ -47,6 +47,8 @@ static struct rt_event fmtio_event;
 static rt_mutex_t tx_lock;
 static rc_data_t rc_data;
 static uint8_t rc_updated;
+static IO_RCStatus io_rc_status;
+static uint32_t io_rc_status_ts;
 /* suspend io package transfer */
 static uint8_t io_comm_suspend;
 /* io default configuration */
@@ -130,6 +132,31 @@ static fmt_err_t handle_rc_pkt(struct IOPacket* pkt)
     return FMT_EOK;
 }
 
+/**
+ * @brief Get the rc link status reported by the IO
+ *
+ * @param status rc link status
+ * @param status_age_ms time since the status was received, can be NULL
+ * @param rc_data_age_ms time since the last rc data was received, can be NULL
+ * @return fmt_err_t FMT_EOK for success, FMT_ENOTHANDLE if no status received yet
+ */
+fmt_err_t fmtio_get_rc_status(IO_RCStatus* status, uint32_t* status_age_ms, uint32_t* rc_data_age_ms)
+{
+    if (io_rc_status_ts == 0) {
+        return FMT_ENOTHANDLE;
+    }
+
+    *status = io_rc_status;
+    if (status_age_ms) {
+        *status_age_ms = systime_now_ms() - io_rc_status_ts;
+    }
+    if (rc_data_age_ms) {
+        *rc_data_age_ms = systime_now_ms() - rc_data.timestamp_ms;
+    }
+
+    return FMT_EOK;
+}
+
 static fmt_err_t local_rx_handler(struct IOPacket* pkt)
 {
     uint8_t crc = pkt->crc;
@@ -149,6 +176,15 @@ static fmt_err_t local_rx_handler(struct IOPacket* pkt)
 
     case IO_CODE_RC_DATA: {
         ret = handle_rc_pkt(pkt);
+    } break;
+
+    case IO_CODE_RC_STATUS: {
+        if (pkt->len == sizeof(IO_RCStatus)) {
+            rt_memcpy(&io_rc_status, pkt->data, sizeof(IO_RCStatus));
+            io_rc_status_ts = systime_now_ms();
+        } else {
+            ret = FMT_EINVAL;
+        }
     } break;
 
     case IO_CODE_DBG_TEXT: {

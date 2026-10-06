@@ -31,6 +31,7 @@ static void show_usage(void)
     PRINT_ACTION("upload", 6, "Upload firmware to FMT IO.");
     PRINT_ACTION("config", 6, "Configure FMT IO.");
     PRINT_ACTION("hello", 6, "Say hello to FMT IO.");
+    PRINT_ACTION("status", 6, "Show RC link status reported by FMT IO.");
 
     PRINT_STRING("\nOption:\n");
     PRINT_ACTION("-h, --help", 13, "Show command usage.");
@@ -60,6 +61,26 @@ static int handle_cmd(int argc, char** argv, int optc, optv_t* optv)
             /* say hello to fmt io */
             // fmtio_send_cmd(PROTO_DBG_TEXT, "hello", strlen("hello"));
             send_io_cmd(IO_CODE_DBG_TEXT, "hello", strlen("hello"));
+        } else if (STRING_COMPARE(argv[1], "status")) {
+            IO_RCStatus status;
+            uint32_t status_age, rc_age;
+
+            if (fmtio_get_rc_status(&status, &status_age, &rc_age) != FMT_EOK) {
+                console_printf("no rc status received from FMT IO yet\n");
+            } else {
+                console_printf("rc link status (reported %lu ms ago, last rc data %lu ms ago)\n",
+                               (unsigned long)status_age,
+                               (unsigned long)rc_age);
+                console_printf("  last frame flags : %s%s\n",
+                               (status.flags & IO_RC_FLAG_FAILSAFE) ? "failsafe " : "",
+                               (status.flags & IO_RC_FLAG_FRAME_LOST) ? "frame-lost" : (status.flags ? "" : "ok"));
+                console_printf("  frames decoded   : %lu\n", (unsigned long)status.frame_count);
+                console_printf("  frame-lost flag  : %lu\n", (unsigned long)status.frame_lost_count);
+                console_printf("  failsafe flag    : %lu\n", (unsigned long)status.failsafe_count);
+                console_printf("  decode drops     : %lu\n", (unsigned long)status.decode_drop_count);
+                console_printf("  since last byte  : %lu ms\n", (unsigned long)status.ms_since_rx);
+                console_printf("  since last frame : %lu ms\n", (unsigned long)status.ms_since_frame);
+            }
         } else {
             show_usage();
         }

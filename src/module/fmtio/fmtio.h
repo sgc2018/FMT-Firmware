@@ -28,6 +28,7 @@ void fmtio_loop(void);
 void fmtio_suspend_comm(uint8_t suspend);
 fmt_err_t send_io_cmd(uint8_t code, void* data, uint16_t len);
 rt_device_t fmtio_get_device(void);
+fmt_err_t fmtio_get_rc_status(IO_RCStatus* status, uint32_t* status_age_ms, uint32_t* rc_data_age_ms);
 fmt_err_t send_io_cmd(uint8_t code, void* data, uint16_t len);
 
 #ifdef __cplusplus
