@@ -1,6 +1,7 @@
 # FMT System Configuration File
 # Pixhawk 6C quadcopter: 4 ESCs on FMU PWM OUT 1-4, SBUS receiver on RC IN,
-# MAVLink UDP gateway on TELEM1, GNSS module on GPS1, debug console on TELEM3.
+# MAVLink UDP gateway on TELEM1, GNSS module on GPS1, debug console on TELEM3,
+# PM02 power module on POWER1 (battery settings are parameters, see the end of this file).
 
 # The target should match with BSP's target name
 target = "Pixhawk 6C"
@@ -93,3 +94,12 @@ target = "Pixhawk 6C"
     name = "serial2"            # GPS1
     auto-config = true
     baudrate = 38400            # NEO-M8N on this vehicle runs at 38400 (0 = auto detect)
+
+# Battery (WisdomFarmer quad, 3S pack through a Holybro PM02 on POWER1)
+# sysconfig.toml cannot carry parameters: they live in /sys/param.xml and are
+# set from the console. Values applied and saved on 2026-10-06:
+#   param set POWER BAT_V_DIV 10.39      # ADC mV -> pack mV, checked against a multimeter (12.5 V)
+#   param set POWER BAT_A_PER_V 36.37    # PM02 current scale, 4 motors at idle read ~0.5 A
+#   param set POWER BAT_N_CELLS 3        # enables cell voltage and state-of-charge estimation
+#   param save
+# QGC's Power page cannot configure this board (it needs PX4 BAT1_* parameters).
