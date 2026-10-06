@@ -68,9 +68,9 @@ target = "Pixhawk 6C"
 
     [[pilot-cmd.command]]
     type = 1                    # 1:event | 2:status
-    cmd = 1002                  # FMS_Cmd_Disarm
-    channel = 6
-    range = [1800,2000]
+    cmd = 1002                  # FMS_Cmd_Disarm, triggered when the switch moves into range
+    channel = 8                 # AT9S Pro: channel 6 is a knob, use a 2-position switch on channel 8
+    range = [1800,2000]         # switch high (+1) = disarm
 
 # Actuator Configuration
 [actuator]
